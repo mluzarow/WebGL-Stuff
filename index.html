@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    
+    <script type="text/javascript" src="js/glMatrix-0.9.5.min.js"></script>
+    <script type="text/javascript" src="js/webGL_init.js"></script>
+    
+    <!-- These two shaders scripts are written in GLSL -->
+    <!--------------------------------------------------->
+    <!-- Fragment shader-->
+    <script id="shader-fs" type="x-shader/x-fragment">
+        // Set float precision
+        precision mediump float;
+        
+        // Varying output
+        varying vec4 vColor;
+        
+        void main (void) {
+            // Shading faces with varying color (vColor)
+            gl_FragColor = vColor;
+        }
+    </script>
+
+    <script id="shader-vs" type="x-shader/x-vertex">
+        // Inputs that vary from vertex to vertex
+        attribute vec3 aVertexPosition;
+        attribute vec4 aVertexColor;
+        
+        // Unchanging (uniform) variables
+        uniform mat4 uMVMatrix;
+        uniform mat4 uPMatrix;
+        
+        // Varying output
+        varying vec4 vColor;
+        
+        void main (void) {
+            // gl_Position implicitly defined as varying
+            gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+            vColor = aVertexColor;
+        }
+    </script>
+</head>
+<body onload="webGL_Start();">
+    <canvas id="canvas" style="border: none;" width="500" height="500"></canvas>
+</body>
+</html>
