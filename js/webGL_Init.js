@@ -1,3 +1,7 @@
+window.onload = function () {
+    webGL_Start ();
+}
+
 function webGL_Start () {
     // Find the canvas element
     var canvas = document.getElementById ("canvas");
@@ -471,10 +475,10 @@ function initBuffers () {
     
     // Define vertices
     var vertices = [
-        0.2,  0.2, 0.0,
-        0.2, -0.2, 0.0,
-       -0.2,  0.2, 0.0,
-       -0.2, -0.2, 0.0
+        0.25,  0.25, 0.0,
+        0.25, -0.25, 0.0,
+       -0.25,  0.25, 0.0,
+       -0.25, -0.25, 0.0
     ];
     // Make a new Float32Array that uses vertices list to fill the buffer
     gl.bufferData (gl.ARRAY_BUFFER, new Float32Array (vertices), gl.STATIC_DRAW);
