@@ -2,7 +2,7 @@ function webGL_Start () {
     // Find the canvas element
     var canvas = document.getElementById ("canvas");
     
-    // 
+    // Initializations
     initGL (canvas);
     initShaders ();
     initBuffers ();
@@ -12,8 +12,155 @@ function webGL_Start () {
     // Enable layering
     gl.enable (gl.DEPTH_TEST);
     
-    // Swap buffers
+    // Key detection setup
+    document.onkeydown = handleKeyDown;
+    document.onkeyup = handleKeyUp;
+    
+    // Frame draw control
+    tick ();
+}
+
+function tick () {
+    // Arrange calls based on next frame render event from browser through webgl-utils.js
+    // to be directed towards tick () (making this the game loop)
+    requestAnimFrame (tick);
+    // User input handling
+    handleInputs ();
+    // AI inputs
+    inputAI ();
+    // Draw
     drawScene ();
+    // Update buffers for next draw
+    animate ();
+}
+
+// Key press state dict
+var currentlyPressedKeys = {};
+
+// Event functions detailing handling of key events
+function handleKeyDown (event) {
+    currentlyPressedKeys[event.keyCode] = true;
+}
+function handleKeyUp(event) {
+    currentlyPressedKeys[event.keyCode] = false;
+}
+
+// The ball
+var xBall = 4;
+var yBall = 0;
+var vxBall = 2;
+var vyBall = 1;
+// Enemy Paddle
+var xEnemy = 9.0;
+var yEnemy = 0;
+// Player controls
+var xPosition = -9.0;
+var yPosition = 0.0;
+
+function handleInputs () {
+    if (currentlyPressedKeys[40]) {
+        // Down cursor key
+        yPosition -= 0.1;
+        
+        if ((yPosition) <= -6) {
+            yPosition = -6;
+        }
+    }
+    if (currentlyPressedKeys[38]) {
+        // Up cursor key
+        yPosition += 0.1;
+        
+        if ((yPosition) >= 6) {
+            yPosition = 6;
+        }
+    }
+}
+
+var playerPoints = 0;
+var enemyPoints = 0;
+
+function inputAI () {
+    // Enemy Paddle AI
+    if (yBall > yEnemy) {
+        yEnemy += 0.1;
+        
+        if ((yEnemy) >= 6) {
+            yEnemy = 6;
+        }
+    } else if (yBall < yEnemy) {
+        yEnemy -= 0.1;
+        
+        if ((yEnemy) <= -6) {
+            yEnemy = -6;
+        }
+    }
+    
+    // Ball AI
+    xBall += 0.1 * vxBall;
+    yBall += 0.1 * vyBall;
+    
+    if (yBall >= 6.8 || yBall <= -6.8) {
+        vyBall = -vyBall;
+    }
+    if (xBall >= 9.8) {
+        xBall = 0;
+        yBall = 0;
+        vxBall = 1 * -(vxBall / Math.abs (vxBall));
+        vyBall = 0.5 * -(vyBall / Math.abs (vyBall));
+        playerPoints += 1;
+        document.getElementById ("points").innerHTML = "Player: " + playerPoints + " Enemy: " + enemyPoints;
+    }
+    if (xBall <= -9.8) {
+        xBall = 0;
+        yBall = 0;
+        vxBall = 1 * -(vxBall / Math.abs (vxBall));
+        vyBall = 0.5 * -(vyBall / Math.abs (vyBall));
+        enemyPoints += 1;
+        document.getElementById ("points").innerHTML = "Player: " + playerPoints + " Enemy: " + enemyPoints;
+    }
+    
+    // Check for paddle collisions
+    if (vxBall < 0) {
+        if (((xBall - 0.2) <= (xPosition + 0.2)) && ((xBall - 0.2) >= (xPosition - 0.2))) {
+            if (vyBall < 0) {
+                if (((yBall - 0.2) <= (yPosition + 1)) && ((yBall - 0.2) >= (yPosition - 1))) {
+                    vxBall -= 0.2;
+                    vyBall -= 0.1;
+                    vxBall = -vxBall;
+                }
+            }
+            if (vyBall > 0) {
+                if (((yBall + 0.2) <= (yPosition + 1)) && ((yBall + 0.2) >= (yPosition - 1))) {
+                    vxBall -= 0.2;
+                    vyBall += 0.1;
+                    vxBall = -vxBall;
+                }
+            }
+        }
+    }
+    if (vxBall > 0) {
+        if (((xBall + 0.2) <= (xEnemy + 0.2)) && ((xBall + 0.2) >= (xEnemy - 0.2))) {
+            if (vyBall < 0) {
+                if (((yBall - 0.2) <= (yEnemy + 1)) && ((yBall - 0.2) >= (yEnemy - 1))) {
+                    vxBall += 0.2;
+                    vyBall -= 0.1;
+                    vxBall = -vxBall;
+                }
+            }
+            if (vyBall > 0) {
+                if (((yBall + 0.2) <= (yEnemy + 1)) && ((yBall + 0.2) >= (yEnemy - 1))) {
+                    vxBall += 0.2;
+                    vyBall += 0.1;
+                    vxBall = -vxBall;
+                }
+            }
+        }
+    }
+    
+}
+
+function animate () {
+
 }
 
 // The GL thingy (WebGL context)
@@ -36,7 +183,20 @@ function initGL (canvas) {
 var mvMatrix = mat4.create ();
 // Projection matrix
 var pMatrix = mat4.create ();
+var mvMatrixStack = [];
 
+function mvPushMatrix() {
+    var copy = mat4.create();
+    mat4.set(mvMatrix, copy);
+    mvMatrixStack.push(copy);
+}
+
+function mvPopMatrix() {
+    if (mvMatrixStack.length == 0) {
+        throw "Invalid popMatrix!";
+    }
+    mvMatrix = mvMatrixStack.pop();
+}
 
 // WebGL shader process to be used in graphics-land
 var shaderProgram;
@@ -125,17 +285,22 @@ function setMatrixUniforms () {
 // Hold positions of both objects
 var triangleVertexPositionBuffer;
 var squareVertexPositionBuffer;
+var enemyVertexPositionBuffer;
+var ballVertexPositionBuffer;
 // Hold colors of both objects
 var triangleVertexColorBuffer;
 var squareVertexColorBuffer;
+var enemyColorPositionBuffer;
+var ballColorPositionBuffer;
 
 function initBuffers () {
+    
     /***************************************
     **
     ** Start building the triangle buffer
     **
     ****************************************/
-    
+    /*
     //
     // First, define the position
     //
@@ -170,9 +335,9 @@ function initBuffers () {
     
     // Define colors (RGBA)
     var colors = [
-        1.0,  0.0, 0.0, 1.0,
-        0.0,  1.0, 0.0, 1.0,
-        0.0,  0.0, 1.0, 1.0
+        0.0,  0.0, 0.0, 1.0,
+        0.0,  0.0, 0.0, 1.0,
+        0.0,  0.0, 0.0, 1.0
     ];
     // Make a new Float32Array that uses vertices list to fill the buffer
     gl.bufferData (gl.ARRAY_BUFFER, new Float32Array (colors), gl.STATIC_DRAW);
@@ -181,6 +346,7 @@ function initBuffers () {
     triangleVertexColorBuffer.numItems = 3;
     // ... with each color holding 4 numbers (red, green, blue, and alpha)
     triangleVertexColorBuffer.itemSize = 4;
+    */
     
     /***************************************
     **
@@ -199,10 +365,10 @@ function initBuffers () {
     
     // Define vertices
     var vertices = [
-        1.0,  1.0, 0.0,
-       -1.0,  1.0, 0.0,
-        1.0, -1.0, 0.0,
-       -1.0, -1.0, 0.0
+        0.2,  1.0, 0.0,
+        0.2, -1.0, 0.0,
+       -0.2,  1.0, 0.0,
+       -0.2, -1.0, 0.0
     ];
     // Make a new Float32Array that uses vertices list to fill the buffer
     gl.bufferData (gl.ARRAY_BUFFER, new Float32Array (vertices), gl.STATIC_DRAW);
@@ -234,7 +400,118 @@ function initBuffers () {
     squareVertexColorBuffer.numItems = 4;
     // ... with each color holding 4 numbers (red, green, blue, and alpha)
     squareVertexColorBuffer.itemSize = 4;
+    
+    /***************************************
+    **
+    ** Start building the Enemy Paddle buffer
+    **
+    ****************************************/
+    
+    //
+    // First, define the shape
+    //
+    
+    // Create a buffer for the square
+    enemyVertexPositionBuffer = gl.createBuffer ();
+    // Change the current target buffer for any buffer edits
+    gl.bindBuffer (gl.ARRAY_BUFFER, enemyVertexPositionBuffer);
+    
+    // Define vertices
+    var vertices = [
+        0.2,  1.0, 0.0,
+        0.2, -1.0, 0.0,
+       -0.2,  1.0, 0.0,
+       -0.2, -1.0, 0.0
+    ];
+    // Make a new Float32Array that uses vertices list to fill the buffer
+    gl.bufferData (gl.ARRAY_BUFFER, new Float32Array (vertices), gl.STATIC_DRAW);
+    
+    // Define buffer information as a set of 4 items (vertex coordinates) ...
+    enemyVertexPositionBuffer.numItems = 4;
+    // ... with each coordinate holding 3 numbers
+    enemyVertexPositionBuffer.itemSize = 3;
+    
+    //
+    // Second, define the color
+    //
+    
+    // Create a buffer for the square
+    enemyVertexColorBuffer = gl.createBuffer ();
+    // Change the current target buffer for any buffer edits
+    gl.bindBuffer (gl.ARRAY_BUFFER, enemyVertexColorBuffer);
+    
+    // Define colors (RGBA)
+    colors = [];
+    for (var i = 0; i < 4; i++) {
+        colors = colors.concat ([0.5, 0.5, 1.0, 1.0]);
+    }
+    
+    // Make a new Float32Array that uses vertices list to fill the buffer
+    gl.bufferData (gl.ARRAY_BUFFER, new Float32Array (colors), gl.STATIC_DRAW);
+    
+    // Define buffer information as a set of 4 items (colors) ...
+    enemyVertexColorBuffer.numItems = 4;
+    // ... with each color holding 4 numbers (red, green, blue, and alpha)
+    enemyVertexColorBuffer.itemSize = 4;
+    
+    /***************************************
+    **
+    ** Start building the Ball buffer
+    **
+    ****************************************/
+    
+    //
+    // First, define the shape
+    //
+    
+    // Create a buffer for the square
+    ballVertexPositionBuffer = gl.createBuffer ();
+    // Change the current target buffer for any buffer edits
+    gl.bindBuffer (gl.ARRAY_BUFFER, ballVertexPositionBuffer);
+    
+    // Define vertices
+    var vertices = [
+        0.2,  0.2, 0.0,
+        0.2, -0.2, 0.0,
+       -0.2,  0.2, 0.0,
+       -0.2, -0.2, 0.0
+    ];
+    // Make a new Float32Array that uses vertices list to fill the buffer
+    gl.bufferData (gl.ARRAY_BUFFER, new Float32Array (vertices), gl.STATIC_DRAW);
+    
+    // Define buffer information as a set of 4 items (vertex coordinates) ...
+    ballVertexPositionBuffer.numItems = 4;
+    // ... with each coordinate holding 3 numbers
+    ballVertexPositionBuffer.itemSize = 3;
+    
+    //
+    // Second, define the color
+    //
+    
+    // Create a buffer for the square
+    ballVertexColorBuffer = gl.createBuffer ();
+    // Change the current target buffer for any buffer edits
+    gl.bindBuffer (gl.ARRAY_BUFFER, ballVertexColorBuffer);
+    
+    // Define colors (RGBA)
+    colors = [];
+    for (var i = 0; i < 4; i++) {
+        colors = colors.concat ([0.5, 0.5, 1.0, 1.0]);
+    }
+    
+    // Make a new Float32Array that uses vertices list to fill the buffer
+    gl.bufferData (gl.ARRAY_BUFFER, new Float32Array (colors), gl.STATIC_DRAW);
+    
+    // Define buffer information as a set of 4 items (colors) ...
+    ballVertexColorBuffer.numItems = 4;
+    // ... with each color holding 4 numbers (red, green, blue, and alpha)
+    ballVertexColorBuffer.itemSize = 4;
+    
 }
+
+// Rotation tracking
+//var rTriangle = 0;
+//var rSquare = 0;
 
 function drawScene () {
     // Set up viewport size
@@ -248,17 +525,24 @@ function drawScene () {
     //   min render distance 0.1 units
     //   max render distance 100 units
     //   pMatrix is a mat4 module variable
-    mat4.perspective (45, gl.viewportWidth / gl.viewportHeight, 0.1, 100, pMatrix);
+    mat4.perspective (90, gl.viewportWidth / gl.viewportHeight, 0.1, 100, pMatrix);
+  
     // Set mvMatrix as identity matrix
     mat4.identity (mvMatrix)
     
+    // (This is the camera view location)
+    mat4.translate (mvMatrix, [0.0, 0.0, -7.0]);
+    
+    /*
     //
     // Draw triangle
     //
     
+    mvPushMatrix();
     // Transform the current matrix (move center of shape by [x y z] units)
     // IE multiply mvMatrix by input
-    mat4.translate (mvMatrix, [-1.5, 0.0, -7.0]);
+    // (This is the camera view location)
+    mat4.translate (mvMatrix, [0.0, 0.0, 0.0]);
     // Change the current target buffer for any buffer edits
     gl.bindBuffer (gl.ARRAY_BUFFER, triangleVertexPositionBuffer);
     gl.vertexAttribPointer (shaderProgram.vertexPositionAttribute, triangleVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
@@ -272,14 +556,17 @@ function drawScene () {
     //    Start from item 0
     //    Go until item numItems
     gl.drawArrays (gl.TRIANGLES, 0, triangleVertexPositionBuffer.numItems);
+    mvPopMatrix();
+    */
     
     //
     // Draw square
     //
     
+    mvPushMatrix();
     // Transform the current matrix (move center of shape by [x y z] units)
     // IE multiply mvMatrix by input
-    mat4.translate (mvMatrix, [3.0, 0.0, 0.0]);
+    mat4.translate (mvMatrix, [xPosition, yPosition, 0.0]);
     // Change the current target buffer for any buffer edits
     gl.bindBuffer (gl.ARRAY_BUFFER, squareVertexPositionBuffer);
     gl.vertexAttribPointer (shaderProgram.vertexPositionAttribute, squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
@@ -293,4 +580,51 @@ function drawScene () {
     //    Start from item 0
     //    Go until item numItems
     gl.drawArrays (gl.TRIANGLE_STRIP, 0, squareVertexPositionBuffer.numItems);
+    mvPopMatrix();
+    
+    //
+    // Draw enemy
+    //
+    
+    mvPushMatrix();
+    // Transform the current matrix (move center of shape by [x y z] units)
+    // IE multiply mvMatrix by input
+    mat4.translate (mvMatrix, [xEnemy, yEnemy, 0.0]);
+    // Change the current target buffer for any buffer edits
+    gl.bindBuffer (gl.ARRAY_BUFFER, enemyVertexPositionBuffer);
+    gl.vertexAttribPointer (shaderProgram.vertexPositionAttribute, enemyVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer (gl.ARRAY_BUFFER, enemyVertexColorBuffer);
+    gl.vertexAttribPointer (shaderProgram.vertexColorAttribute, enemyVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    
+    // Move transformation matrix data from js space to graphics space
+    setMatrixUniforms ();
+    // Define what to treat vertex + matrix information
+    //    Draw vertices in array as a triangle strip
+    //    Start from item 0
+    //    Go until item numItems
+    gl.drawArrays (gl.TRIANGLE_STRIP, 0, enemyVertexPositionBuffer.numItems);
+    mvPopMatrix();
+    
+    //
+    // Draw ball
+    //
+    
+    mvPushMatrix();
+    // Transform the current matrix (move center of shape by [x y z] units)
+    // IE multiply mvMatrix by input
+    mat4.translate (mvMatrix, [xBall, yBall, 0.0]);
+    // Change the current target buffer for any buffer edits
+    gl.bindBuffer (gl.ARRAY_BUFFER, ballVertexPositionBuffer);
+    gl.vertexAttribPointer (shaderProgram.vertexPositionAttribute, ballVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer (gl.ARRAY_BUFFER, ballVertexColorBuffer);
+    gl.vertexAttribPointer (shaderProgram.vertexColorAttribute, ballVertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    
+    // Move transformation matrix data from js space to graphics space
+    setMatrixUniforms ();
+    // Define what to treat vertex + matrix information
+    //    Draw vertices in array as a triangle strip
+    //    Start from item 0
+    //    Go until item numItems
+    gl.drawArrays (gl.TRIANGLE_STRIP, 0, ballVertexPositionBuffer.numItems);
+    mvPopMatrix();
 }
